@@ -1,6 +1,6 @@
 #!/bin/bash
 
-
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 ##############################################################################
 #####                       Support Quick Actions                        #####
 #####                                                                    #####
@@ -8,10 +8,12 @@
 #####                                                                    #####
 #####                                                                    #####
 ##############################################################################
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # 
 
-##################################################
-##### Declare varibles to be passed/refrence #####
-##################################################
+
+# # # # # # # # # # # # # # # # # # # # # #
+# Declare varibles to be passed/refrence  #
+# # # # # # # # # # # # # # # # # # # # # #
 
 #apiUser=""
 #apiPassword=""
@@ -27,12 +29,12 @@ bannerimage=$6
 scriptLog="/private/var/tmp/quickActions.log"
 swiftDialogMinimumRequiredVersion="2.3.2.4726"
 
-#######################################################
-##### Define functions for commomly used commands #####
-#######################################################
 
+# # # # # # # # # # # # # # # # # # # # # # # #
+# Define functions for commomly used commands # 
+# # # # # # # # # # # # # # # # # # # # # # # #
 
-# Dialog related functions
+#### Dialog related functions ####
 
 updateScriptLog() {
 	echo -e "$( date +%Y-%m-%d\ %H:%M:%S ) - ${1}" | tee -a "${scriptLog}"
@@ -81,8 +83,6 @@ dialogInstall() {
 	
 }
 
-
-
 dialogCheck() {
 	
 	# Output Line Number in `verbose` Debug Mode
@@ -114,32 +114,34 @@ dialogCheck() {
 
 dialogCheck
 
-# Functions for dealing with response from Jamf
 
-check_status() {
-	if grep -q "Bad Request" <<< "$1"; then
-		echo "Failed"
-		result="Failure"
-	else
-		echo "Success"
-		result="Command Sent"
-	fi
+#### Functions for dealing with response from Jamf - JSON value extration and error handling ####
+
+# Function to extract value from JSON using awk - Arguments: JSON input, key to extract.
+extract_from_json() {
+	echo "$1" | awk -v key="$2" '
+		BEGIN {
+			RS = "[},]";
+			FS = "[:,]";
+		}
+		{
+			for (i = 1; i <= NF; i += 2) {
+				if ($i ~ "\"" key "\"") {
+					gsub(/["{}]/, "", $(i + 1));
+					gsub(/^[\t ]+|[\t ]+$/, "", $(i + 1));
+					print $(i + 1);
+					exit;
+				}
+			}
+		}
+	'
 }
 
-check_status_comp() {
-	if grep -q "httpStatus" <<< "$1"; then
-		echo "Failed"
-		result="Failure"
-	else
-		echo "Success"
-		result="Command Sent"
-	fi
-}
-
+# Displays results from checks - pass two variables.
 display_result() {
 	/usr/local/bin/dialog \
 	--bannertitle "Support Quick Actions" \
-	--message "$message: $result" \
+	--message "$message:  $result" \
 	--bannerimage $bannerimage \
 	--titlefont "size=26,shadow=1" \
 	--messagefont size=14 \
@@ -155,19 +157,60 @@ display_result() {
 	--overlayicon $overlayicon
 }
 
+# Checks results from bearer token - pass result from token commands.
+check_token() {
+	if [ -z "$1" ]; then
+		message="Incorrect URL"
+		result="Check domain or enter without https://"
+	elif [[ $1 == *"Bad Request"* || $1 == *"httpStatus"* || $1 == *"Access Denied"* || $1 == *"Status page"* ]]; then
+		message="Incorrect Username/Password"
+		result="Failure"
+	else
+		result="Token Good"
+	fi
+}
 
-# Token Related Functions
+# Checks results from computer/device ID curl command - pass result from ID commands.
+check_serial() {
+	echo "Checking Serial"
+	echo $1
+	if [[ $1 == *"<mobile_device>"* || $1 == *"<computer>"*  ]]; then
+		echo "Success: Device Found"
+		result="Success: Device Found"
+	else
+		result="Failure"
+	fi
+}
 
+# Checks results from various commands - pass result from commands.
+check_status() {
+	if [[ $1 == *"Bad Request"* || $1 == *"httpStatus"* || $1 == *"Access Denied"* || $1 == *"Status page"* ]]; then
+		result="Failure"
+	else
+		result="Command Sent"
+	fi
+}
+
+
+#### Token Related Functions ###
+
+# Gets Bearer Token from Jamf Pro, checks results then saves as bearerToken variable.
 bearer_token() {
 	token=$( /usr/bin/curl \
 	--request POST \
 	--silent \
 	--url "$jamfProURL/api/v1/auth/token" \
 	--user "$apiUser:$apiPassword" )
-	bearerToken=$( /usr/bin/plutil \
-	-extract token raw - <<< "$token" )
+	check_token "$token"
+	if [[ "$result" == "Failure" || "$result" == "Check domain or enter without https://" ]]; then
+		display_result
+		exit 0
+	else
+		bearerToken=$( /usr/bin/plutil -extract token raw - <<< "$token" )
+	fi
 }
 
+# Expires Bearer Token
 expire_token() {
 	# Expire auth token
 	/usr/bin/curl \
@@ -177,26 +220,35 @@ expire_token() {
 	--url "$jamfProURL/api/v1/auth/invalidate-token"
 }
 
-# Computer Related Functions
+#### Computer Related Functions  ####
 
+# Gets Computer ID from Jamf Pro, checks results then saves as computerID variable.
 computer_instance_ID() {
 	response=$(curl -s -X GET \
 	-H "Authorization: Bearer $bearerToken" \
 	-H "Accept: application/xml" \
 	"$jamfProURL/JSSResource/computers/serialnumber/$SERIAL")
-	# Extract the computer ID based on the serial number from the response using xmllint and sed
-	computerID=$(echo "$response" | xmllint --xpath 'string(/computer/general/id)' - | sed 's/[^0-9]*//g')
+	check_serial "$response"
+	if [[ "$result" == "Failure" ]]; then
+		message="Serial $SERIAL not found on $jamfProURL"
+		display_result
+		exit 0
+	else
+		# Extract the computer ID based on the serial number from the response using xmllint and sed
+		computerID=$(echo "$response" | xmllint --xpath 'string(/computer/general/id)' - | sed 's/[^0-9]*//g')
+	fi
 }
 
+# Retreives Computer Management ID using Computer ID
 computer_management_ID() { 
 	# Send API request to get the computer inventory details
-	response2=$(curl -s -X GET \
+	response=$(curl -s -X GET \
 		-H "Authorization: Bearer $bearerToken" \
 		-H "accept: application/json" \
 		"$jamfProURL/api/v1/computers-inventory-detail/$computerID")
 	
 	# Extract the management ID from the response using awk
-	computerManagementID=$(echo $response2 | grep -o '"managementId" : "[^"]*' | cut -d '"' -f 4)
+	computerManagementID=$(echo $response | grep -o '"managementId" : "[^"]*' | cut -d '"' -f 4)
 }
 
 redeploy_framework() {
@@ -204,7 +256,7 @@ redeploy_framework() {
 	--header "Authorization: Bearer $bearerToken" \
 	--request POST \
 	--url "$jamfProURL/api/v1/jamf-management-framework/redeploy/$computerID")
-	check_status_comp "$redeployresult"
+	check_status "$redeployresult"
 	message="Redeploy Framework"
 	display_result
 }
@@ -239,17 +291,27 @@ lock_computer() {
 	display_result
 }
 
-# Device Related Functions
 
+#### Device Related Functions ####
+
+# Gets Device ID from Jamf Pro, checks results then saves as deviceID variable.
 device_instance_ID() {
 	dresponse=$(curl -s -X GET \
 	-H "Authorization: Bearer $bearerToken" \
 	-H "Accept: application/xml" \
 	"$jamfProURL/JSSResource/mobiledevices/serialnumber/$SERIAL")
-	# Extract the computer ID based on the serial number from the response using xmllint and sed
-	deviceID=$(echo "$dresponse" | xmllint --xpath 'string(/mobile_device/general/id)' - | sed 's/[^0-9]*//g')	
+	check_serial "$dresponse"
+	if [[ "$result" == "Failure" ]]; then
+		message="Serial $SERIAL not found on $jamfProURL"
+		display_result
+		exit 0
+	else
+		# Extract the computer ID based on the serial number from the response using xmllint and sed
+		deviceID=$(echo "$dresponse" | xmllint --xpath 'string(/mobile_device/general/id)' - | sed 's/[^0-9]*//g')
+	fi
 }
 
+# Retreives Device Management ID using Device ID
 device_management_ID() {
 	# Send API request to get the computer inventory details
 	dresponse2=$(curl -s -X GET \
@@ -325,9 +387,11 @@ jamfProDomain=$(echo "$formatted_answer" | grep "URL : [^ ]*" | awk '{print $3}'
 SERIAL=$(echo "$formatted_answer" | grep "Serial : [^ ]*" | awk '{print $3}')
 device_or_computer=$(echo "$formatted_answer" | grep "SelectedOption : [^ ]*" | awk '{print $3}')
 jamfProURL="https://$jamfProDomain"
+bearer_token
 
 if [ $device_or_computer == 'Computer' ] 
 then
+	computer_instance_ID
 	answer=$(/usr/local/bin/dialog \
 	--bannertitle "Support Quick Actions" \
 	--message "" \
@@ -352,26 +416,18 @@ then
 	
 	if [ $function == 'Redeploy' ] 
 	then
-		bearer_token
-		computer_instance_ID
 		redeploy_framework
 		expire_token
 	elif [ $function == 'Lock' ]
 	then
-		bearer_token
-		computer_instance_ID
 		lock_computer
 		expire_token
 	elif [ $function == 'Recovery' ]
 	then
-		bearer_token
-		computer_instance_ID
 		recovery_lock_password
 		expire_token
 	elif [ $function == 'FileVault2' ]
 	then
-		bearer_token
-		computer_instance_ID
 		filevault_recovery_key
 		expire_token
 	else
@@ -379,6 +435,7 @@ then
 	fi
 	
 else
+	device_instance_ID
 	answer=$(/usr/local/bin/dialog \
 	--bannertitle "Support Quick Actions" \
 	--message "" \
@@ -404,20 +461,14 @@ else
 	
 	if [ $function == 'Clear' ] 
 	then
-		bearer_token
-		device_instance_ID
 		clear_Passcode
 		expire_token
 	elif [ $function == 'Wipe' ]
 	then
-		bearer_token
-		device_instance_ID
 		wipe_device
 		expire_token
 	elif [ $function == 'Update' ]
 	then
-		bearer_token
-		device_instance_ID
 		update_device_inventory
 		expire_token
 	else
