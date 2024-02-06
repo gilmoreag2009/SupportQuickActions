@@ -36,6 +36,8 @@ swiftDialogMinimumRequiredVersion="2.3.2.4726"
 
 #### Dialog related functions ####
 
+
+
 updateScriptLog() {
 	echo -e "$( date +%Y-%m-%d\ %H:%M:%S ) - ${1}" | tee -a "${scriptLog}"
 }
@@ -85,6 +87,9 @@ dialogInstall() {
 
 dialogCheck() {
 	
+	if [[ ! -f "${scriptLog}" ]]; then
+		touch "${scriptLog}"
+	fi
 	# Output Line Number in `verbose` Debug Mode
 	if [[ "${debugMode}" == "verbose" ]]; then updateScriptLog "PRE-FLIGHT CHECK: # # # SETUP YOUR MAC VERBOSE DEBUG MODE: Line No. ${LINENO} # # #" ; fi
 	
