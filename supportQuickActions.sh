@@ -20,14 +20,14 @@
 #jamfProURL=""
 #SERIAL=""
 wipe_lock_passcode="123456"
-icon=$4
-overlayicon=$5
-bannerimage=$6
+icon=${4:-"info"}
+overlayicon=${5:-"sf=square.and.arrow.down"}
+bannerimage=${6:-"https://github.com/gilmoreag2009/SupportQuickActions/blob/main/bg.png?raw=true"}
 #token -> bearerToken
 #computerID -> computerManagementID
 #deviceID -> deviceManagementID
 scriptLog="/private/var/tmp/quickActions.log"
-swiftDialogMinimumRequiredVersion="2.3.2.4726"
+swiftDialogMinimumRequiredVersion="2.4.0"
 
 
 # # # # # # # # # # # # # # # # # # # # # # # #
@@ -399,7 +399,7 @@ then
 	computer_instance_ID
 	answer=$(/usr/local/bin/dialog \
 	--bannertitle "Support Quick Actions" \
-	--message "" \
+	--message "  " \
 	--selecttitle "Computer Functions",required \
 	--selectvalues "Redeploy Jamf Framework, Lock Computer, Recovery Key, FileVault2 Key" \
 	--bannerimage $bannerimage \
@@ -443,7 +443,7 @@ else
 	device_instance_ID
 	answer=$(/usr/local/bin/dialog \
 	--bannertitle "Support Quick Actions" \
-	--message "" \
+	--message "  " \
 	--selecttitle "Device Functions",required \
 	--selectvalues "Clear Passcode, Wipe Device, Update Inventory" \
 	--bannerimage $bannerimage \
