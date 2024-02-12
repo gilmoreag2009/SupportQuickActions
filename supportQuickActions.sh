@@ -160,6 +160,27 @@ display_result() {
 	--button1text "Close" \
 	--icon $icon \
 	--overlayicon $overlayicon
+	updateScriptLog "Result Displayed - $message:  $result"
+}
+
+display_laps() {
+	/usr/local/bin/dialog \
+	--bannertitle "Support Quick Actions" \
+	--message "Username:  $laps_username<br>Password: $laps_password" \
+	--bannerimage $bannerimage \
+	--titlefont "size=26,shadow=1" \
+	--messagefont size=14 \
+	--height 400 \
+	--width 600 \
+	--iconsize 120  \
+	--ontop \
+	--moveable \
+	--position center \
+	--quitkey g \
+	--button1text "Close" \
+	--icon $icon \
+	--overlayicon $overlayicon
+	updateScriptLog "Result Displayed - Username:  $laps_username"
 }
 
 # Checks results from bearer token - pass result from token commands.
@@ -178,7 +199,6 @@ check_token() {
 # Checks results from computer/device ID curl command - pass result from ID commands.
 check_serial() {
 	echo "Checking Serial"
-	echo $1
 	if [[ $1 == *"<mobile_device>"* || $1 == *"<computer>"*  ]]; then
 		echo "Success: Device Found"
 		result="Success: Device Found"
@@ -296,6 +316,30 @@ lock_computer() {
 	display_result
 }
 
+JamfLaps() {
+	
+	# Send API request to get the LAPS username
+	laps_username_response=$(curl -s -X GET \
+	-H "Authorization: Bearer $bearerToken" \
+	-H "accept: application/json" \
+	"$jamfProURL/api/v2/local-admin-password/$computerManagementID/accounts")
+	
+	# Extract the LAPS username from the response using awk
+	laps_username=$(extract_from_json "$laps_username_response" "username")
+	
+	echo $laps_username
+	
+	# Send API request to get the LAPS password
+	laps_password_response=$(curl -s -X GET \
+	-H "Authorization: Bearer $bearerToken" \
+	-H "accept: application/json" \
+	"$jamfProURL/api/v2/local-admin-password/$computerManagementID/account/$laps_username/password")
+	
+	# Extract the LAPS password from the response using awk
+	laps_password=$(extract_from_json "$laps_password_response" "password")
+	
+	display_laps
+}
 
 #### Device Related Functions ####
 
@@ -401,7 +445,7 @@ then
 	--bannertitle "Support Quick Actions" \
 	--message "  " \
 	--selecttitle "Computer Functions",required \
-	--selectvalues "Redeploy Jamf Framework, Lock Computer, Recovery Key, FileVault2 Key" \
+	--selectvalues "Redeploy Jamf Framework, Lock Computer, Recovery Key, FileVault2 Key, LAPS Password" \
 	--bannerimage $bannerimage \
 	--titlefont "size=26,shadow=1" \
 	--messagefont size=14 \
@@ -434,6 +478,11 @@ then
 	elif [ $function == 'FileVault2' ]
 	then
 		filevault_recovery_key
+		expire_token
+	elif [ $function == 'LAPS' ]
+	then
+		computer_management_ID
+		JamfLaps
 		expire_token
 	else
 		echo "Error"
