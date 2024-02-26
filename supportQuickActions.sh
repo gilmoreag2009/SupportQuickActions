@@ -159,7 +159,8 @@ display_result() {
 	--quitkey g \
 	--button1text "Close" \
 	--icon $icon \
-	--overlayicon $overlayicon
+	--overlayicon $overlayicon \
+	--position center
 	updateScriptLog "Result Displayed - $message:  $result"
 }
 
@@ -180,6 +181,7 @@ display_laps() {
 	--button1text "Close" \
 	--icon $icon \
 	--overlayicon $overlayicon
+	--position center
 	updateScriptLog "Result Displayed - Username:  $laps_username"
 }
 
@@ -198,10 +200,9 @@ check_token() {
 
 # Checks results from computer/device ID curl command - pass result from ID commands.
 check_serial() {
-	echo "Checking Serial"
+	updateScriptLog  "Checking Serial"
 	if [[ $1 == *"<mobile_device>"* || $1 == *"<computer>"*  ]]; then
-		echo "Success: Device Found"
-		result="Success: Device Found"
+		updateScriptLog  "Success: Device Found"
 	else
 		result="Failure"
 	fi
@@ -232,6 +233,7 @@ bearer_token() {
 		exit 0
 	else
 		bearerToken=$( /usr/bin/plutil -extract token raw - <<< "$token" )
+		updateScriptLog "Bearer Token Check Successful"
 	fi
 }
 
@@ -243,6 +245,7 @@ expire_token() {
 	--request POST \
 	--silent \
 	--url "$jamfProURL/api/v1/auth/invalidate-token"
+	updateScriptLog "Token Expired"
 }
 
 #### Computer Related Functions  ####
@@ -261,6 +264,7 @@ computer_instance_ID() {
 	else
 		# Extract the computer ID based on the serial number from the response using xmllint and sed
 		computerID=$(echo "$response" | xmllint --xpath 'string(/computer/general/id)' - | sed 's/[^0-9]*//g')
+		updateScriptLog "Computer Instance ID : $computerID"
 	fi
 }
 
@@ -274,6 +278,7 @@ computer_management_ID() {
 	
 	# Extract the management ID from the response using awk
 	computerManagementID=$(echo $response | grep -o '"managementId" : "[^"]*' | cut -d '"' -f 4)
+	updateScriptLog "Computer Management ID: $computerManagementID"
 }
 
 redeploy_framework() {
@@ -327,7 +332,7 @@ JamfLaps() {
 	# Extract the LAPS username from the response using awk
 	laps_username=$(extract_from_json "$laps_username_response" "username")
 	
-	echo $laps_username
+	updateScriptLog "LAPS Username: $laps_username"
 	
 	# Send API request to get the LAPS password
 	laps_password_response=$(curl -s -X GET \
@@ -357,6 +362,7 @@ device_instance_ID() {
 	else
 		# Extract the computer ID based on the serial number from the response using xmllint and sed
 		deviceID=$(echo "$dresponse" | xmllint --xpath 'string(/mobile_device/general/id)' - | sed 's/[^0-9]*//g')
+		updateScriptLog "Device ID: $deviceID"
 	fi
 }
 
@@ -370,6 +376,7 @@ device_management_ID() {
 	
 	# Extract the management ID from the response using awk
 	deviceManagementID=$(echo $dresponse2 | grep -o '"managementId" : "[^"]*' | cut -d '"' -f 4)
+	updateScriptLog "Device ID: $deviceManagementID"
 	
 }
 
@@ -426,7 +433,8 @@ answer=$(/usr/local/bin/dialog \
 --quitkey g \
 --button1text "OK" \
 --icon $icon \
---overlayicon $overlayicon)
+--overlayicon $overlayicon \
+--position center)
 
 formatted_answer=$(echo "$answer" | sed 's/:/: /g' | sed 's/"//g')
 
@@ -458,7 +466,8 @@ then
 	--quitkey g \
 	--button1text "OK" \
 	--icon $icon \
-	--overlayicon $overlayicon)
+	--overlayicon $overlayicon \
+	--position center)
 	
 	formatted_answer=$(echo "$answer" | sed 's/:/: /g' | sed 's/"//g')
 	function=$(echo "$formatted_answer" | grep "SelectedOption : [^ ]*" | awk '{print $3}')
@@ -507,7 +516,8 @@ else
 	--quitkey g \
 	--button1text "OK" \
 	--icon $icon \
-	--overlayicon $overlayicon)
+	--overlayicon $overlayicon
+	--position center)
 	
 	formatted_answer=$(echo "$answer" | sed 's/:/: /g' | sed 's/"//g')
 	function=$(echo "$formatted_answer" | grep "SelectedOption : [^ ]*" | awk '{print $3}')
